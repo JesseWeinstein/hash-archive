@@ -71,7 +71,7 @@ function stream_text(stream, cb) {
 	});
 }
 function stream_hashes(thing, cb) { // cb(err, { length, hashes })
-	thing.length = 0;
+	thing.content_length = 0;
 	var hashers = {
 		"md5": crypto.createHash("md5"),
 		"sha1": crypto.createHash("sha1"),
@@ -81,7 +81,7 @@ function stream_hashes(thing, cb) { // cb(err, { length, hashes })
 	};
 	thing.hashes = {}
 	thing.data.on("data", function(chunk) {
-		length += chunk.length;
+		thing.content_length += chunk.length;
 		Object.keys(hashers).forEach(function(algo) {
 			hashers[algo].write(chunk);
 		});
@@ -252,7 +252,7 @@ function url_stat(obj, redirect_count, cb) {
 
 				console.log(data.headers['WARC-Target-URI']);
 				data_stream = streamm.PassThrough();
-				data_stream.end(data.content.slice(data.content.indexOf("\r\n\r\n")));
+				data_stream.end(data.content);
 				stream_hashes({
 					status: '200',
 					content_type: '?',
@@ -289,7 +289,7 @@ function url_stat(obj, redirect_count, cb) {
 			if(err) return cb(err, null);
 			if(
 				has(res.headers, "content-length") &&
-				res_thing.length !== parseInt(res.headers["content-length"]))
+				res_thing.content_length !== parseInt(res.headers["content-length"]))
 			{
 				return cb(errno.createError(errno.ERR_TRUNCATED), null);
 			}
