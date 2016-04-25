@@ -11,6 +11,8 @@ var qs = require("querystring");
 var urlm = require("url");
 var pathm = require("path");
 var util = require("util");
+var streamm = require("stream");
+var WARCStream = require('warc');
 
 var mime_table = require("./mime.json");
 //var robots = require("robots");
@@ -68,8 +70,8 @@ function stream_text(stream, cb) {
 		cb(err, null);
 	});
 }
-function stream_hashes(stream, cb) { // cb(err, { length, hashes })
-	var length = 0;
+function stream_hashes(thing, cb) { // cb(err, { length, hashes })
+	thing.length = 0;
 	var hashers = {
 		"md5": crypto.createHash("md5"),
 		"sha1": crypto.createHash("sha1"),
@@ -77,24 +79,23 @@ function stream_hashes(stream, cb) { // cb(err, { length, hashes })
 		"sha384": crypto.createHash("sha384"),
 		"sha512": crypto.createHash("sha512"),
 	};
-	stream.on("data", function(chunk) {
+	thing.hashes = {}
+	thing.data.on("data", function(chunk) {
 		length += chunk.length;
 		Object.keys(hashers).forEach(function(algo) {
 			hashers[algo].write(chunk);
 		});
 	});
-	stream.on("end", function() {
-		var hashes = {};
+	thing.data.on("end", function() {
 		Object.keys(hashers).forEach(function(algo) {
 			hashers[algo].end();
-			hashes[algo] = hashers[algo].read();
+			thing.hashes[algo] = hashers[algo].read();
 		});
-		cb(null, {
-			length: length,
-			hashes: hashes,
-		});
+		thing.response_time = +new Date;
+		thing.data = null;
+		cb(null, thing);
 	});
-	stream.on("error", function(err) {
+	thing.data.on("error", function(err) {
 		cb(err, null);
 	});
 }
@@ -136,20 +137,45 @@ function worker() {
 			console.log("Worker stopping (remaining: "+workers+")");
 			return;
 		}
+		function check_err(db, err) {
+			if(err) {
+				db_close(db);
+				throw err;
+			}
+		}
+		function finish_transaction(db) {
+			db.run("COMMIT", function(err) {
+				check_err(db, err);
+				db_close(db);
+				var elapsed = +new Date - start_time;
+				var delay = config["crawl_delay"];
+				setTimeout(function() {
+					workers--;
+					worker();
+				}, Math.max(0, delay - elapsed));
+			});
+		}
 
 		var start_time = +new Date;
 		url_check_and_stat(req.url, 0, function(err, res) {
 			if(err) res = request_error(req, err);
+			if (res.processed) return;
+			res.processed = true;
+
 			db_open(function(db) {
-				response_store(db, req, res, function(err) {
-					db_close(db);
-					if(err) throw err;
-					var elapsed = +new Date - start_time;
-					var delay = config["crawl_delay"];
-					setTimeout(function() {
-						workers--;
-						worker();
-					}, Math.max(0, delay - elapsed));
+				db.run("BEGIN TRANSACTION", function(err) {
+					check_err(db, err);
+					response_store(db, req, res.main, function(err, response_id) {
+						check_err(db, err);
+						if (res.inners) {
+							inners_store(db, res.inners, response_id, function(err) {
+								check_err(db, err);
+								finish_transaction(db);
+							});
+						} else {
+							finish_transaction(db);
+						}
+					});
 				});
 			});
 		});
@@ -214,23 +240,64 @@ function url_stat(obj, redirect_count, cb) {
 			return url_check_and_stat(res.headers["location"], redirect_count+1, cb);
 		}
 
-		stream_hashes(res, function(err, obj) {
+		var w = null;
+		var full_response = {};
+		if (/\.warc$/.test(obj.path.toLowerCase())) {
+			console.log('warc!!!');
+			full_response.inners = [];
+			w = new WARCStream();
+			res.pipe(w)
+			w.on('data', function (data) {
+				if (data.headers['WARC-Type'] !== 'response') return;
+
+				console.log(data.headers['WARC-Target-URI']);
+				data_stream = streamm.PassThrough();
+				data_stream.end(data.content.slice(data.content.indexOf("\r\n\r\n")));
+				stream_hashes({
+					status: '200',
+					content_type: '?',
+					etag: '?',
+					last_modified: '?',
+					date: data.headers['WARC-Date'],
+					data: data_stream
+				}, function(err, res_thing) {
+					full_response.inners.push(
+						{
+							request_url: data.headers['WARC-Target-URI'],
+							response: res_thing
+						});
+				});
+			});
+			w.on('end', function() {
+				console.log('Finished WARC processing');
+				full_response.done = true;
+				if (full_response.main) {
+					cb(null, full_response);
+				}
+			});
+		} else {
+			full_response.done = true;
+		}
+		stream_hashes({
+			status: res.statusCode,
+			content_type: res.headers["content-type"],
+			etag: res.headers["etag"],
+			last_modified: res.headers["last-modified"],
+			date: res.headers["date"],
+			data: res
+		}, function(err, res_thing) {
 			if(err) return cb(err, null);
 			if(
 				has(res.headers, "content-length") &&
-				obj.length !== parseInt(res.headers["content-length"]))
+				res_thing.length !== parseInt(res.headers["content-length"]))
 			{
 				return cb(errno.createError(errno.ERR_TRUNCATED), null);
 			}
-			cb(null, {
-				status: res.statusCode,
-				response_time: +new Date,
-				content_type: res.headers["content-type"],
-				etag: res.headers["etag"],
-				last_modified: res.headers["last-modified"],
-				date: res.headers["date"],
-				hashes: obj.hashes,
-			});
+			console.log('Finished normal processing');
+			full_response.main = res_thing;
+			if (full_response.done) {
+				cb(null, full_response);
+			}
 		});
 	});
 	req.on("error", function(err) {
@@ -313,11 +380,7 @@ function request_bump(db, url, cb) {
 				outdated = false;
 			}
 			if(outdated && !pending) {
-				db.run(
-					"INSERT INTO requests (url, request_time)\n"+
-					"VALUES (?, ?)",
-					url, +new Date,
-				function(err) {
+				insert_request(db, url,	function(err) {
 					if(err) {
 						db.run("ROLLBACK");
 						return cb(err, null);
@@ -341,60 +404,80 @@ function request_bump(db, url, cb) {
 		});
 	});
 }
+function insert_request(db, url, cb) {
+	db.run(
+		"INSERT INTO requests (url, request_time)\n"+
+			"VALUES (?, ?)",
+		url, +new Date, cb);
+}
 function response_store(db, req, res, cb) {
-	db.run("BEGIN TRANSACTION", function(err) {
-		if(err) return cb(err);
-		db.run(
-			"INSERT INTO responses (request_id, status, response_time,\n"+
+	db.run(
+		"INSERT INTO responses (request_id, status, response_time,\n"+
 			"\t"+"content_type, etag, last_modified, date)\n"+
 			"VALUES (?, ?, ?, ?, ?, ?, ?)",
-			req.request_id, res.status, res.response_time,
-			res.content_type, res.etag, res.last_modified, res.date,
+		req.request_id, res.status, res.response_time,
+		res.content_type, res.etag, res.last_modified, res.date,
 		function(err) {
 			if(err) {
 				db.run("ROLLBACK");
-				return cb(err);
+				return cb(err, null);
 			}
 			var response_id = this.lastID;
-			response_store_hashes(db, response_id, res.hashes, function(err) {
-				if(err) {
-					db.run("ROLLBACK");
-					return cb(err);
-				}
-				db.run("COMMIT", function(err) {
-					cb(err);
-				});
-			});
+			response_store_hashes(db, response_id, res.hashes, cb);
 		});
-	});
 }
 function response_store_hashes(db, response_id, hashes, cb) {
 	var algos = Object.keys(hashes);
 	var i = 0;
 	(function next() {
-		if(i >= algos.length) return cb(null);
+		if(i >= algos.length) return cb(null, response_id);
 		var algo = algos[i];
 		var data = hashes[algo];
 		db.run(
 			"INSERT OR IGNORE INTO hashes (algo, data)\n"+
 			"VALUES (?, ?)", algo, data,
 		function(err) {
-			if(err) return cb(err);
+			if(err) return cb(err, null);
 			db.get(
 				"SELECT hash_id FROM hashes\n"+
 				"WHERE algo = ? AND data = ? LIMIT 1",
 				algo, data,
 			function(err, insertion) {
-				if(err) return cb(err);
+				if(err) return cb(err, null);
 				db.run(
 					"INSERT INTO response_hashes (response_id, hash_id)\n"+
 					"VALUES (?, ?)", response_id, insertion.hash_id,
 				function(err) {
-					if(err) return cb(err);
+					if(err) return cb(err, null);
 					i++;
 					next();
 				});
 			});
+		});
+	})();
+}
+function inners_store(db, inners, wrapper_response_id, cb) {
+	var i = 0;
+	(function next() {
+		if(i >= inners.length) return cb(null);
+		var inner_url = inners[i].request_url;
+		var inner_res = inners[i].response;
+		insert_request(db, inner_url, function(err) {
+			if (err) return cb(err);
+			var inner_req = {request_id: this.lastID};
+			response_store(
+				db, inner_req, inner_res,
+				function(err, inner_response_id) {
+					if (err) return cb(err);
+					db.run(
+						"INSERT INTO wrapped_inner_requests (wrapper_response_id, inner_request_id)\n"+
+							" VALUES (?, ?)", wrapper_response_id, inner_req.request_id,
+						function(err) {
+							if (err) return cb(err);
+							i++;
+							next();
+					});
+				});
 		});
 	})();
 }
