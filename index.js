@@ -13,6 +13,7 @@ var pathm = require("path");
 var util = require("util");
 var streamm = require("stream");
 var WARCStream = require('warc');
+var HTTPParser = require('http-parser-js').HTTPParser;
 
 var mime_table = require("./mime.json");
 //var robots = require("robots");
@@ -71,16 +72,19 @@ function stream_text(stream, cb) {
 	});
 }
 
-function do_hashing(thing, cb) {
-    thing.content_length = 0;
-    thing.hashes = {};
-    stream_hashes(thing.data, function(err, obj) {
+function do_hashing(data, headers, statusCode, cb) {
+    stream_hashes(data, function(err, obj) {
 		if (err) cb(err, null);
-		thing.response_time = +new Date;
-		thing.data = null;
-		thing.content_length = obj.length;
-		thing.hashes = obj.hashes;
-		cb(null, thing);
+		cb(null, {
+			status: statusCode,
+			content_type: headers["content-type"],
+			etag: headers["etag"],
+			last_modified: headers["last-modified"],
+			date: headers["date"],
+			response_time: +new Date,
+			content_length: obj.length,
+			hashes: obj.hashes
+		});
 	});
 }
 
@@ -266,22 +270,32 @@ function url_stat(obj, redirect_count, cb) {
 				if (data.headers['WARC-Type'] !== 'response') return;
 
 				console.log(data.headers['WARC-Target-URI']);
-				data_stream = streamm.PassThrough();
-				data_stream.end(data.content);
-				do_hashing({
-					status: '200',
-					content_type: '?',
-					etag: '?',
-					last_modified: '?',
-					date: data.headers['WARC-Date'],
-					data: data_stream
-				}, function(err, res_thing) {
-					full_response.inners.push(
-						{
-							request_url: data.headers['WARC-Target-URI'],
-							response: res_thing
-						});
-				});
+				var parser = new HTTPParser(HTTPParser.RESPONSE);
+				var data_stream = streamm.PassThrough();
+				var headers = {}, statusCode;
+				parser.onHeadersComplete = function(info) {
+					for (var i = 0; i < info.headers.length; i += 2) {
+						headers[info.headers[i].toLowerCase()] = info.headers[i+1]
+					}
+					console.log('headers', headers);
+					statusCode = info.statusCode;
+				};
+				parser.onBody = function(chunk, offset, len) {
+					console.log("body", chunk.toString('utf8', offset, offset + len))
+					data_stream.write(chunk.slice(offset, offset + len))
+				}
+				parser.onMessageComplete = function() {
+					console.log('complete');
+					data_stream.end();
+					do_hashing(data_stream, headers, statusCode, function(err, res_thing) {
+						full_response.inners.push(
+							{
+								request_url: data.headers['WARC-Target-URI'],
+								response: res_thing
+							});
+					});
+				}
+				parser.execute(data.content);
 			});
 			w.on('end', function() {
 				console.log('Finished WARC processing');
@@ -293,14 +307,7 @@ function url_stat(obj, redirect_count, cb) {
 		} else {
 			full_response.done = true;
 		}
-		do_hashing({
-			status: res.statusCode,
-			content_type: res.headers["content-type"],
-			etag: res.headers["etag"],
-			last_modified: res.headers["last-modified"],
-			date: res.headers["date"],
-			data: res
-		}, function(err, res_thing) {
+		do_hashing(res, res.headers, res.statusCode, function(err, res_thing) {
 			if(err) return cb(err, null);
 			if(
 				has(res.headers, "content-length") &&
