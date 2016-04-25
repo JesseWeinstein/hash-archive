@@ -70,8 +70,22 @@ function stream_text(stream, cb) {
 		cb(err, null);
 	});
 }
-function stream_hashes(thing, cb) { // cb(err, { length, hashes })
-	thing.content_length = 0;
+
+function do_hashing(thing, cb) {
+    thing.content_length = 0;
+    thing.hashes = {};
+    stream_hashes(thing.data, function(err, obj) {
+		if (err) cb(err, null);
+		thing.response_time = +new Date;
+		thing.data = null;
+		thing.content_length = obj.length;
+		thing.hashes = obj.hashes;
+		cb(null, thing);
+	});
+}
+
+function stream_hashes(stream, cb) { // cb(err, { length, hashes })
+	var length = 0;
 	var hashers = {
 		"md5": crypto.createHash("md5"),
 		"sha1": crypto.createHash("sha1"),
@@ -79,23 +93,24 @@ function stream_hashes(thing, cb) { // cb(err, { length, hashes })
 		"sha384": crypto.createHash("sha384"),
 		"sha512": crypto.createHash("sha512"),
 	};
-	thing.hashes = {}
-	thing.data.on("data", function(chunk) {
-		thing.content_length += chunk.length;
+	stream.on("data", function(chunk) {
+		length += chunk.length;
 		Object.keys(hashers).forEach(function(algo) {
 			hashers[algo].write(chunk);
 		});
 	});
-	thing.data.on("end", function() {
+	stream.on("end", function() {
+		var hashes = {};
 		Object.keys(hashers).forEach(function(algo) {
 			hashers[algo].end();
-			thing.hashes[algo] = hashers[algo].read();
+			hashes[algo] = hashers[algo].read();
 		});
-		thing.response_time = +new Date;
-		thing.data = null;
-		cb(null, thing);
+		cb(null, {
+			length: length,
+			hashes: hashes,
+		});
 	});
-	thing.data.on("error", function(err) {
+	stream.on("error", function(err) {
 		cb(err, null);
 	});
 }
@@ -253,7 +268,7 @@ function url_stat(obj, redirect_count, cb) {
 				console.log(data.headers['WARC-Target-URI']);
 				data_stream = streamm.PassThrough();
 				data_stream.end(data.content);
-				stream_hashes({
+				do_hashing({
 					status: '200',
 					content_type: '?',
 					etag: '?',
@@ -278,7 +293,7 @@ function url_stat(obj, redirect_count, cb) {
 		} else {
 			full_response.done = true;
 		}
-		stream_hashes({
+		do_hashing({
 			status: res.statusCode,
 			content_type: res.headers["content-type"],
 			etag: res.headers["etag"],
