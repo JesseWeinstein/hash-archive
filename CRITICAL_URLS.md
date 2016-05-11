@@ -58,6 +58,21 @@ Given the nature of a list like this, it may never be complete. Feel free to ope
 - http://rpmfusion.org/keys?action=AttachFile&do=view&target=RPM-GPG-KEY-rpmfusion-free-fedora-21
 - http://rpmfusion.org/keys?action=AttachFile&do=view&target=RPM-GPG-KEY-rpmfusion-nonfree-fedora-21
 
+[OpenSUSE](https://www.opensuse.org)
+
+- http://download.opensuse.org/tumbleweed/iso/openSUSE-Tumbleweed-DVD-x86_64-Current.iso
+- http://download.opensuse.org/tumbleweed/iso/openSUSE-Tumbleweed-DVD-x86_64-Current.iso.sha256
+- http://download.opensuse.org/tumbleweed/iso/openSUSE-Tumbleweed-DVD-i586-Current.iso
+- http://download.opensuse.org/tumbleweed/iso/openSUSE-Tumbleweed-DVD-i586-Current.iso.sha256
+- http://download.opensuse.org/tumbleweed/iso/openSUSE-Tumbleweed-NET-x86_64-Current.iso
+- http://download.opensuse.org/tumbleweed/iso/openSUSE-Tumbleweed-NET-x86_64-Current.iso.sha256
+- http://download.opensuse.org/tumbleweed/iso/openSUSE-Tumbleweed-NET-i586-Current.iso
+- http://download.opensuse.org/tumbleweed/iso/openSUSE-Tumbleweed-NET-i586-Current.iso.sha256
+- http://download.opensuse.org/distribution/leap/42.1/iso/openSUSE-Leap-42.1-DVD-x86_64.iso
+- http://download.opensuse.org/distribution/leap/42.1/iso/openSUSE-Leap-42.1-DVD-x86_64.iso.sha256
+- http://download.opensuse.org/distribution/leap/42.1/iso/openSUSE-Leap-42.1-NET-x86_64.iso
+- http://download.opensuse.org/distribution/leap/42.1/iso/openSUSE-Leap-42.1-NET-x86_64.iso.sha256
+
 [QubesOS](https://www.qubes-os.org)
 
 - https://mirrors.kernel.org/qubes/iso/Qubes-R3.1-x86_64.iso
@@ -67,8 +82,23 @@ Given the nature of a list like this, it may never be complete. Feel free to ope
 - https://mirrors.kernel.org/qubes/iso/Qubes-R3.1-x86_64.iso.DIGESTS
 - https://mirrors.kernel.org/qubes/iso/Qubes-R3.1-x86_64.iso.asc
 
+[Whonix](https://www.whonix.org)
+
+- https://www.whonix.org/download/12.0.0.3.2/Whonix-Gateway-12.0.0.3.2.libvirt.xz
+- https://www.whonix.org/download/12.0.0.3.2/Whonix-Gateway-12.0.0.3.2.libvirt.xz.asc
+- https://www.whonix.org/download/12.0.0.3.2/Whonix-Gateway-12.0.0.3.2.sha512sums
+- https://www.whonix.org/download/12.0.0.3.2/Whonix-Gateway-12.0.0.3.2.sha512sums.asc
+- https://www.whonix.org/download/12.0.0.3.2/Whonix-Workstation-12.0.0.3.2.libvirt.xz
+- https://www.whonix.org/download/12.0.0.3.2/Whonix-Workstation-12.0.0.3.2.libvirt.xz.asc
+- https://www.whonix.org/download/12.0.0.3.2/Whonix-Workstation-12.0.0.3.2.sha512sums
+- https://www.whonix.org/download/12.0.0.3.2/Whonix-Workstation-12.0.0.3.2.sha512sums.asc
+- https://www.whonix.org/patrick.asc
+
 [Tails](https://tails.boum.org)
 
+- http://dl.amnesia.boum.org/tails/stable/tails-i386-2.3/tails-i386-2.3.iso
+- https://tails.boum.org/torrents/files/tails-i386-2.3.iso.sig
+- https://tails.boum.org/tails-signing.key
 - http://dl.amnesia.boum.org/tails/stable/tails-i386-2.2.1/tails-i386-2.2.1.iso
 - https://tails.boum.org/torrents/files/tails-i386-2.2.1.iso.sig
 
@@ -125,6 +155,17 @@ Given the nature of a list like this, it may never be complete. Feel free to ope
 - http://mirrors-usa.go-parts.com/gcc/snapshots/6-20160410/gcc-6-20160410.tar.bz2
 - http://mirrors-usa.go-parts.com/gcc/snapshots/6-20160410/sha512.sum
 
+[CompCert](http://compcert.inria.fr)
+
+- http://compcert.inria.fr/release/compcert-2.6.tgz
+- http://compcert.inria.fr/release/SHA1SUMS
+
+[Redis](http://redis.io)
+
+- http://download.redis.io/releases/redis-3.2.0.tar.gz
+- http://download.redis.io/releases/redis-2.8.23.tar.gz
+- https://raw.githubusercontent.com/antirez/redis-hashes/master/README
+
 ## Other Software
 
 JavaScript on CDNs
@@ -170,6 +211,16 @@ JavaScript on CDNs
 - https://www.torproject.org/dist/torbrowser/5.5.4/torbrowser-install-5.5.4_en-US.exe.asc
 - https://www.torproject.org/dist/torbrowser/5.5.4/TorBrowser-5.5.4-osx64_en-US.dmg
 - https://www.torproject.org/dist/torbrowser/5.5.4/TorBrowser-5.5.4-osx64_en-US.dmg.asc
+
+[VirtualBox](https://www.virtualbox.org)
+
+- http://download.virtualbox.org/virtualbox/5.0.20/VirtualBox-5.0.20-106931-Win.exe
+- http://download.virtualbox.org/virtualbox/5.0.20/VirtualBox-5.0.20-106931-OSX.dmg
+- http://download.virtualbox.org/virtualbox/5.0.20/virtualbox-5.0_5.0.20-106931~Ubuntu~xenial_amd64.deb
+- http://download.virtualbox.org/virtualbox/5.0.20/virtualbox-5.0_5.0.20-106931~Debian~jessie_amd64.deb
+- http://download.virtualbox.org/virtualbox/5.0.20/VirtualBox-5.0-5.0.20_106931_openSUSE132-1.x86_64.rpm
+- http://download.virtualbox.org/virtualbox/5.0.20/VirtualBox-5.0.20-106931-SunOS.tar.gz
+- https://www.virtualbox.org/download/hashes/5.0.20/SHA256SUMS
 
 [Transmission](https://www.transmissionbt.com/)
 
